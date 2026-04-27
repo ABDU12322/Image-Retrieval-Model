@@ -1,5 +1,5 @@
 """
-Image and Text Encoders for CLIP and SimCLR models.
+Image and Text Encoders for CLIP model.
 """
 
 import torch

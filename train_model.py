@@ -1,12 +1,11 @@
 """
-Consolidated Training Script - Train CLIP or SimCLR Model with Model Persistence
+Consolidated Training Script - Train CLIP Model with Model Persistence
 
-This is the MAIN training file. It combines all training functionality:
-1. Choose model type (CLIP or SimCLR)
-2. Configure training parameters
-3. Train with automatic FAISS vector storage
-4. Save trained models for later use (no need to retrain)
-5. Save checkpoints and embeddings
+This is the MAIN training file. It provides:
+1. Interactive training interface for CLIP
+2. Automatic FAISS vector storage
+3. Model persistence (save/load)
+4. No need to retrain - just load the saved model!
 
 USAGE:
     python train_model.py
@@ -29,7 +28,7 @@ import sys
 from PIL import Image
 import torchvision.transforms as transforms
 
-from models import CLIPModel, SimCLRModel, CLIPLoss, SimCLRLoss
+from models import CLIPModel, CLIPLoss
 from models.utils import get_device, count_parameters, tokenize_text
 from models.faiss_vector_store import EmbeddingManager
 
@@ -55,22 +54,6 @@ MODEL_CONFIGS = {
             'num_text_layers': 12,
             'num_text_heads': 8,
             'image_pretrained': True,
-        }
-    },
-    'simclr': {
-        'name': 'SimCLR (Image-to-Image Retrieval)',
-        'description': 'Simple Contrastive Learning of Representations',
-        'capabilities': [
-            '✓ Image-to-Image retrieval',
-            '✓ Self-supervised learning',
-            '✓ No text labels required'
-        ],
-        'params': {
-            'embedding_dim': 512,
-            'projection_dim': 128,
-            'hidden_dim': 2048,
-            'num_negative': 4096,
-            'temperature': 0.07,
         }
     }
 }
@@ -120,7 +103,7 @@ class ModelManager:
         
         Args:
             model: Trained model instance
-            model_type: 'clip' or 'simclr'
+            model_type: 'clip'
             model_config: Model configuration dict
             training_info: Dict with training details (epochs, loss, etc.)
             model_name: Custom name for the model (default: auto-generated)
@@ -187,14 +170,6 @@ class ModelManager:
                 num_text_layers=model_config['params']['num_text_layers'],
                 num_text_heads=model_config['params']['num_text_heads'],
                 image_pretrained=model_config['params']['image_pretrained'],
-            )
-        elif model_type == 'simclr':
-            model = SimCLRModel(
-                embedding_dim=model_config['params']['embedding_dim'],
-                projection_dim=model_config['params']['projection_dim'],
-                hidden_dim=model_config['params']['hidden_dim'],
-                num_negative=model_config['params']['num_negative'],
-                temperature=model_config['params']['temperature'],
             )
         else:
             raise ValueError(f"Unknown model type: {model_type}")
@@ -481,24 +456,9 @@ def print_section(text):
     print("-" * 80)
 
 def select_model_type():
-    """Let user select model type."""
-    print_section("SELECT MODEL TYPE")
-    
-    for i, (model_key, config) in enumerate(MODEL_CONFIGS.items(), 1):
-        print(f"\n{i}. {config['name']}")
-        print(f"   {config['description']}")
-        print(f"   Capabilities:")
-        for cap in config['capabilities']:
-            print(f"     {cap}")
-    
-    while True:
-        choice = input("\nEnter choice (1 or 2): ").strip()
-        if choice == '1':
-            return 'clip'
-        elif choice == '2':
-            return 'simclr'
-        else:
-            print("Invalid choice. Please enter 1 or 2.")
+    """Get model type (CLIP only)."""
+    # CLIP is the only supported model
+    return 'clip'
 
 def select_training_scale():
     """Let user select training scale."""
@@ -570,15 +530,7 @@ def create_clip_model(model_config):
         image_pretrained=model_config['params']['image_pretrained'],
     )
 
-def create_simclr_model(model_config):
-    """Create SimCLR model instance."""
-    return SimCLRModel(
-        embedding_dim=model_config['params']['embedding_dim'],
-        projection_dim=model_config['params']['projection_dim'],
-        hidden_dim=model_config['params']['hidden_dim'],
-        num_negative=model_config['params']['num_negative'],
-        temperature=model_config['params']['temperature'],
-    )
+
 
 def print_training_summary(model_type, data_source, training_scale, train_config, model_config):
     """Print a summary of training configuration."""
@@ -822,10 +774,7 @@ def main():
     # Step 4: Create model
     print_section("INITIALIZING MODEL")
     
-    if model_type == 'clip':
-        model = create_clip_model(model_config)
-    else:
-        model = create_simclr_model(model_config)
+    model = create_clip_model(model_config)
     
     device = get_device()
     print(f"✓ Model created")

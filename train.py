@@ -1,11 +1,10 @@
 """
-Interactive Training Script - Train CLIP or SimCLR Model
+Interactive Training Script - Train CLIP Model
 
 This script provides an interactive interface to:
-1. Choose model type (CLIP or SimCLR)
-2. Configure training parameters
-3. Train with automatic FAISS vector storage
-4. Save checkpoints and embeddings
+1. Configure training parameters
+2. Train CLIP model with automatic FAISS vector storage
+3. Save checkpoints and embeddings
 
 Usage:
     python train.py
@@ -18,7 +17,7 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 import sys
 
-from models import CLIPModel, SimCLRModel
+from models import CLIPModel
 from train_with_faiss import CLIPTrainerWithFAISS
 from models.utils import get_device
 
@@ -44,22 +43,6 @@ MODEL_CONFIGS = {
             'num_text_layers': 12,
             'num_text_heads': 8,
             'image_pretrained': True,
-        }
-    },
-    'simclr': {
-        'name': 'SimCLR (Image-to-Image Retrieval)',
-        'description': 'Simple Contrastive Learning of Representations',
-        'capabilities': [
-            '✓ Image-to-Image retrieval',
-            '✓ Self-supervised learning',
-            '✓ No text labels required'
-        ],
-        'params': {
-            'embedding_dim': 512,
-            'projection_dim': 128,
-            'hidden_dim': 2048,
-            'num_negative': 4096,
-            'temperature': 0.07,
         }
     }
 }
@@ -105,24 +88,9 @@ def print_section(text):
     print("-" * 80)
 
 def select_model_type():
-    """Let user select model type."""
-    print_section("SELECT MODEL TYPE")
-    
-    for i, (model_key, config) in enumerate(MODEL_CONFIGS.items(), 1):
-        print(f"\n{i}. {config['name']}")
-        print(f"   {config['description']}")
-        print(f"   Capabilities:")
-        for cap in config['capabilities']:
-            print(f"     {cap}")
-    
-    while True:
-        choice = input("\nEnter choice (1 or 2): ").strip()
-        if choice == '1':
-            return 'clip'
-        elif choice == '2':
-            return 'simclr'
-        else:
-            print("Invalid choice. Please enter 1 or 2.")
+    """Get model type (CLIP only)."""
+    # CLIP is the only supported model
+    return 'clip'
 
 def select_training_scale():
     """Let user select training scale."""
@@ -200,15 +168,7 @@ def create_clip_model(model_config):
         image_pretrained=model_config['params']['image_pretrained'],
     )
 
-def create_simclr_model(model_config):
-    """Create SimCLR model instance."""
-    return SimCLRModel(
-        embedding_dim=model_config['params']['embedding_dim'],
-        projection_dim=model_config['params']['projection_dim'],
-        hidden_dim=model_config['params']['hidden_dim'],
-        num_negative=model_config['params']['num_negative'],
-        temperature=model_config['params']['temperature'],
-    )
+
 
 def save_training_config(model_type, data_source, training_config, model_config, output_dir='training_configs'):
     """Save training configuration for reference."""
@@ -301,12 +261,8 @@ def main():
     device = get_device()
     print(f"Device: {device}")
     
-    if model_type == 'clip':
-        model = create_clip_model(model_config)
-        print(f"✓ Created CLIP model")
-    else:  # simclr
-        model = create_simclr_model(model_config)
-        print(f"✓ Created SimCLR model")
+    model = create_clip_model(model_config)
+    print(f"✓ Created CLIP model")
     
     # Print model info
     from models.utils import count_parameters
@@ -337,22 +293,17 @@ def main():
     # Step 6: Create trainer
     print_section("CREATING TRAINER")
     
-    if model_type == 'clip':
-        trainer = CLIPTrainerWithFAISS(
-            model=model,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            learning_rate=train_config['learning_rate'],
-            weight_decay=train_config['weight_decay'],
-            device=device,
-            vector_store_dir='vector_store',
-            embedding_dim=model_config['params']['image_embedding_dim'],
-        )
-        print("✓ Created CLIPTrainerWithFAISS")
-    else:
-        print("⚠ SimCLR trainer not yet implemented")
-        print("  Please create SimCLRTrainerWithFAISS class")
-        sys.exit(1)
+    trainer = CLIPTrainerWithFAISS(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        learning_rate=train_config['learning_rate'],
+        weight_decay=train_config['weight_decay'],
+        device=device,
+        vector_store_dir='vector_store',
+        embedding_dim=model_config['params']['image_embedding_dim'],
+    )
+    print("✓ Created CLIPTrainerWithFAISS")
     
     # Step 7: Train
     print_section("STARTING TRAINING")
@@ -400,7 +351,7 @@ def main():
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description='Train Image Retrieval Model (CLIP or SimCLR)',
+        description='Train CLIP Image Retrieval Model',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -408,17 +359,15 @@ Examples:
   python train.py
   
   # Direct configuration
-  python train.py --model clip --scale medium --data coco_small
-  
-  # Non-interactive
-  python train.py --model simclr --scale small --data coco_medium --non-interactive
+  python train.py --model clip --scale small --data coco_small --non-interactive
         """
     )
     
     parser.add_argument(
         '--model',
-        choices=['clip', 'simclr'],
-        help='Model type to train'
+        choices=['clip'],
+        default='clip',
+        help='Model type to train (CLIP only)'
     )
     parser.add_argument(
         '--scale',

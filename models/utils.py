@@ -42,49 +42,6 @@ def get_image_transforms(image_size: int = 224, augmentation: bool = False):
         ])
 
 
-def get_simclr_augmentations(image_size: int = 224):
-    """
-    Get aggressive augmentations for SimCLR (two different random augmentation pipelines).
-    
-    Args:
-        image_size (int): Size to resize images to. Default: 224.
-        
-    Returns:
-        tuple: Two transform pipelines for creating augmented pairs
-    """
-    base_transforms = [
-        transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225],
-        ),
-    ]
-    
-    # First augmentation pipeline
-    augmentation_1 = transforms.Compose([
-        transforms.RandomResizedCrop(image_size, scale=(0.08, 1.0)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomApply([
-            transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2)
-        ], p=0.8),
-        transforms.RandomGrayscale(p=0.2),
-        transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
-    ] + base_transforms)
-    
-    # Second augmentation pipeline (different from first)
-    augmentation_2 = transforms.Compose([
-        transforms.RandomResizedCrop(image_size, scale=(0.08, 1.0)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomApply([
-            transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2)
-        ], p=0.8),
-        transforms.RandomGrayscale(p=0.2),
-        transforms.RandomRotation(15),
-    ] + base_transforms)
-    
-    return augmentation_1, augmentation_2
-
-
 def normalize_embeddings(embeddings):
     """
     Normalize embeddings to unit vectors.
