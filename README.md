@@ -1,8 +1,6 @@
 # Image-Retrieval-Model
 
-An advanced image retrieval system that retrieves similar images from images and text using:
-- **CLIP** (Contrastive Language-Image Pre-training) for text-to-image retrieval
-- **SimCLR** (Simple Framework for Contrastive Learning) for image-to-image self-supervised learning
+An advanced image retrieval system that retrieves similar images using CLIP (Contrastive Language-Image Pre-training) with FAISS vector store for efficient similarity search.
 
 ## Architecture
 
@@ -11,30 +9,37 @@ An advanced image retrieval system that retrieves similar images from images and
 - **Image Encoder**: ResNet-50 backbone with projection head
 - **Text Encoder**: Transformer-based encoder
 - **Loss**: Symmetric cross-entropy (text-to-image and image-to-text)
-- **Use Case**: Query images using natural language descriptions
+- **Use Case**: Query images using natural language descriptions or find similar images
 
-### SimCLR Model
-- Learns image representations through self-supervised contrastive learning
-- Uses augmented image pairs to learn useful representations
-- **Backbone**: ResNet-50 with projection head
-- **Loss**: NT-Xent (Normalized Temperature-scaled Cross Entropy)
-- **Use Case**: Learn representations without labels for downstream retrieval tasks
+### FAISS Integration
+- Efficient similarity search with FAISS vector store
+- Indexed embeddings for fast retrieval
+- Support for various similarity metrics
 
 ## Project Structure
 
 ```
 Image-Retrieval-Model/
-├── models/              # Model implementations
-│   ├── encoders.py      # ImageEncoder and TextEncoder
-│   ├── losses.py        # CLIPLoss and SimCLRLoss
-│   ├── clip_model.py    # CLIP model
-│   ├── simclr_model.py  # SimCLR model
-│   ├── utils.py         # Utilities (transforms, helpers)
-│   └── README.md        # Detailed model documentation
-├── dataset/             # Dataset utilities and downloads
-├── train_template.py    # Training template for both models
-├── requirements.txt     # Python dependencies
-└── README.md            # This file
+├── models/                          # Model implementations
+│   ├── clip_model.py               # CLIP model
+│   ├── encoders.py                 # ImageEncoder and TextEncoder
+│   ├── losses.py                   # CLIPLoss
+│   ├── faiss_vector_store.py       # FAISS vector store for efficient retrieval
+│   ├── utils.py                    # Utilities (transforms, helpers)
+│   └── README.md                   # Detailed model documentation
+├── dataset/                         # Dataset utilities and downloads
+├── trained_model_clip/             # Pre-trained CLIP model and embeddings
+│   ├── clip_encoder.pth
+│   ├── config.json
+│   └── image_embeddings.index
+├── train.py                        # Main training script
+├── train_model.py                  # Alternative training script
+├── train_with_faiss.py            # Training with FAISS integration
+├── evaluate_clip_retrieval.py      # Evaluation script
+├── retrieve_images.py              # Image retrieval utilities
+├── retrieve_similar_images.py      # Similar image retrieval
+├── requirements.txt                # Python dependencies
+└── README.md                       # This file
 ```
 
 ## Getting Started
@@ -50,54 +55,53 @@ pip install -r requirements.txt
 See [models/README.md](models/README.md) for detailed documentation and examples.
 
 ```python
-from models import CLIPModel, SimCLRModel, CLIPLoss, SimCLRLossSimplified
+from models import CLIPModel, CLIPLoss
 
-# Initialize models
+# Initialize model
 clip_model = CLIPModel()
-simclr_model = SimCLRModel()
 
-# Loss functions
+# Loss function
 clip_loss = CLIPLoss(temperature=0.07)
-simclr_loss = SimCLRLossSimplified(temperature=0.07)
 ```
 
 ### Training
 
-Use the trainer classes from `train_template.py`:
+Run the main training script:
 
-```python
-from train_template import CLIPTrainer, SimCLRTrainer
-
-# CLIP Training
-clip_trainer = CLIPTrainer(model=clip_model, train_loader=train_loader)
-clip_trainer.train(num_epochs=100)
-
-# SimCLR Training
-simclr_trainer = SimCLRTrainer(model=simclr_model, train_loader=train_loader)
-simclr_trainer.train(num_epochs=100)
+```bash
+python train.py
 ```
+
+For training with FAISS integration:
+
+```bash
+python train_with_faiss.py
+```
+
+See individual training scripts for configuration options and parameters.
 
 ## Features
 
 ### CLIP
-- Text-to-image and image-to-text retrieval
+- Text-to-image and image-to-image retrieval
 - Learnable temperature parameter for dynamic scaling
 - Supports attention masks for variable-length text
 - Normalized embeddings for efficient similarity computation
+- Joint image-text embedding space
 
-### SimCLR
-- Self-supervised learning without labels
-- Aggressive data augmentation pipelines
-- Projection head for contrastive learning
-- Methods for both projected and non-projected embeddings
+### FAISS Integration
+- Efficient vector indexing and search
+- Fast similarity retrieval over large datasets
+- Multiple indexing strategies support
 
 ### Utilities
 - Multiple image augmentation strategies
 - Helper functions for training and inference
 - Device management (GPU/CPU)
 - Parameter counting and freezing
+- Embedding extraction and evaluation
 
 ## References
 
 - CLIP: [Learning Transferable Visual Models From Natural Language Supervision](https://arxiv.org/abs/2103.14030)
-- SimCLR: [A Simple Framework for Contrastive Learning of Visual Representations](https://arxiv.org/abs/2002.05709)
+- FAISS: [Billion-scale Similarity Search with GPUs](https://arxiv.org/abs/1702.08734)

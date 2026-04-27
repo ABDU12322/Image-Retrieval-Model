@@ -41,7 +41,9 @@ class CLIPImageEncoder(nn.Module):
         # ResNet50 backbone (pretrained)
         import torchvision.models as models
         self.backbone = models.resnet50(pretrained=True)
-        self.backbone.fc = nn.Identity()
+        # Store feature dimension before removing FC layer
+        self.feature_dim = self.backbone.fc.in_features
+        self.backbone.fc = nn.Identity()  # type: ignore
         
         # Projection head
         self.head = nn.Sequential(
@@ -134,20 +136,17 @@ class FAISSVectorStore:
     
     def __init__(self, embedding_dim, use_gpu=True):
         self.embedding_dim = embedding_dim
-        self.use_gpu = use_gpu and faiss.get_num_gpus() > 0
+        self.use_gpu = False  # Use CPU-only for compatibility
         self.metadata = []
         
-        # Create index
-        if self.use_gpu:
-            res = faiss.StandardGpuResources()
-            self.index = faiss.GpuIndexFlatL2(res, embedding_dim)
-        else:
-            self.index = faiss.IndexFlatL2(embedding_dim)
+        # Create index using CPU
+        self.index = faiss.IndexFlatL2(embedding_dim)
     
     def add_embeddings(self, embeddings, names):
         """Add embeddings to index"""
+        embeddings = embeddings.astype(np.float32)
         faiss.normalize_L2(embeddings)
-        self.index.add(embeddings.astype(np.float32))
+        self.index.add(embeddings)  # type: ignore
         self.metadata.extend(names)
     
     def search(self, query_embedding, k=5):
@@ -155,8 +154,9 @@ class FAISSVectorStore:
         if query_embedding.ndim == 1:
             query_embedding = query_embedding.reshape(1, -1)
         
+        query_embedding = query_embedding.astype(np.float32)
         faiss.normalize_L2(query_embedding)
-        distances, indices = self.index.search(query_embedding.astype(np.float32), k)
+        distances, indices = self.index.search(query_embedding, k)  # type: ignore
         
         results = []
         for rank, (distance, idx) in enumerate(zip(distances[0], indices[0])):
@@ -171,13 +171,7 @@ class FAISSVectorStore:
     
     def load_index(self, index_path, metadata_path):
         """Load from disk"""
-        cpu_index = faiss.read_index(index_path)
-        
-        if self.use_gpu:
-            res = faiss.StandardGpuResources()
-            self.index = faiss.index_cpu_to_gpu(res, 0, cpu_index)
-        else:
-            self.index = cpu_index
+        self.index = faiss.read_index(str(index_path))
         
         with open(metadata_path, 'r') as f:
             metadata_dict = json.load(f)
@@ -260,10 +254,10 @@ class CLIPRetriever:
     
     def _load_model(self, model_dir: str):
         """Load trained CLIP model"""
-        model_dir = Path(model_dir)
+        model_path_obj = Path(model_dir)
         
         # Load config
-        config_path = model_dir / 'config.json'
+        config_path = model_path_obj / 'config.json'
         if not config_path.exists():
             raise FileNotFoundError(f"Config not found: {config_path}")
         
@@ -275,7 +269,7 @@ class CLIPRetriever:
         model = CLIPModel(embedding_dim=embedding_dim)
         
         # Load weights
-        model_path = model_dir / 'clip_encoder.pth'
+        model_path = model_path_obj / 'clip_encoder.pth'
         if not model_path.exists():
             raise FileNotFoundError(f"Model not found: {model_path}")
         
@@ -313,16 +307,16 @@ class CLIPRetriever:
     
     def _load_faiss_index(self, model_dir: str):
         """Load FAISS index"""
-        model_dir = Path(model_dir)
+        model_path_obj = Path(model_dir)
         
-        index_path = model_dir / 'image_embeddings.index'
-        metadata_path = model_dir / 'image_embeddings_metadata.json'
+        index_path = model_path_obj / 'image_embeddings.index'
+        metadata_path = model_path_obj / 'image_embeddings_metadata.json'
         
         if not index_path.exists() or not metadata_path.exists():
             raise FileNotFoundError(f"FAISS index not found in {model_dir}")
         
         # Load config to get embedding dim
-        config_path = model_dir / 'config.json'
+        config_path = model_path_obj / 'config.json'
         with open(config_path, 'r') as f:
             config = json.load(f)
         embedding_dim = config.get('embedding_dim', 512)
@@ -330,7 +324,7 @@ class CLIPRetriever:
         # Create and load index
         vector_store = FAISSVectorStore(
             embedding_dim=embedding_dim,
-            use_gpu=(faiss.get_num_gpus() > 0)
+            use_gpu=False
         )
         vector_store.load_index(str(index_path), str(metadata_path))
         
@@ -372,7 +366,8 @@ class CLIPRetriever:
                     std=[0.229, 0.224, 0.225]
                 )
             ])
-            image_tensor = transform(image).unsqueeze(0).to(self.device)
+            image_tensor = transform(image)  # type: ignore
+            image_tensor = image_tensor.unsqueeze(0).to(self.device)  # type: ignore
             
             # Get embedding
             with torch.no_grad():
