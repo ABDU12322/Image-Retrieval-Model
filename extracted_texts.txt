@@ -1,0 +1,95 @@
+--- PDF ---
+A Unified Multimodal Retrieval System Combining
+SimCLR and CLIP-Style Contrastive Objectives
+Adeel Tahir and Abdullah Sarafraz
+Department of Software Engineering
+National University of Sciences and Technology (NUST), Islamabad, Pakistan
+Abstract
+We present a unified multimodal image retrieval system that serves both text-to-image (T2I) and image-to-image (I2I) queries
+from a single shared 128-dimensional embedding space. A ResNet-50 image encoder and a DistilBERT text encoder are jointly
+trained on 2,000 MS-COCO image-caption pairs using a weighted combination of SimCLR NT-Xent loss ( τ =0.10) and a CLIP-
+style symmetric cross-entropy loss ( τ =0.07), with α=β=0.5. Training runs for 10 epochs on CPU, reducing total loss from 1.461
+to 0.320 (78% reduction). Retrieval is served via a FAISSIndexFlatIP over L2-normalised embeddings. T2I semantic evaluation
+on 50 COCO val2017 queries ( K=5, gallery = 5 ,000) achieves Average CLIP Score@5 = 0 .248, Semantic NDCG@5 = 0 .986,
+and Soft Recall@5= 0.880. I2I evaluation using COCO category ground truth (50 queries, 4,902-image gallery, hard mode) yields
+Category Precision@5= 0.828, Category NDCG@5= 0.838, and Category Recall@5 = 0.960, with Self-Embedding Cosine@5 =
+0.780.
+Index Terms
+Multimodal retrieval, contrastive learning, SimCLR, CLIP, FAISS, MS-COCO, semantic evaluation
+I. I NTRODUCTION
+A. Problem Definition
+Existing image retrieval systems are largely unimodal: they
+accept either a text query or an image query, but not both,
+within a single unified model. This forces practitioners to
+maintain separate pipelines for text-based and image-based
+retrieval, limiting flexibility and increasing operational com-
+plexity in deployment.
+This project builds a single multimodal retrieval model that
+accepts either an image or a text query and retrieves seman-
+tically similar images from the same gallery. The expected
+outcome is a unified model with improved retrieval accuracy
+compared to unimodal baselines, evaluated on the MS-COCO
+dataset [3].
+B. Research Gap
+Previous work in image retrieval has focused on single-
+modal approaches — using either image input only (e.g.
+contrastive visual representation learning [1]) or text input only
+(e.g. natural-language image search) to retrieve similar images.
+No prior lightweight unified model was proposed that handles
+both modalities within a single shared training objective and
+a single checkpoint.
+This project addresses that gap by combining image-to-
+image learning (SimCLR-based contrastive learning across
+augmented views) with image-to-text alignment (CLIP-style
+vision-language loss) into one loss function:
+L = α LSimCLR + β LCLIP, (1)
+enabling one model to serve both T2I and I2I query types
+effectively.
+C. Contributions
+We combine two complementary objectives: SimCLR [1]
+builds view-invariant visual neighbourhoods; CLIP-style train-
+ing [2] aligns vision with language. The joint loss trains
+one encoder pair whose shared embedding space is compact
+for visual similarity and semantically aligned for cross-modal
+queries. Our system uses ResNet-50 + DistilBERT [5] trained
+on 2,000 COCO pairs for 10 epochs on a CPU. Despite these
+constraints, Soft Recall@5 = 0 .88 and Category Recall@5 =
+0.96 demonstrate meaningful semantic retrieval.
+II. R ELATED WORK
+Unimodal image retrieval. SimCLR [1] learns view-
+invariant visual representations by maximising agreement be-
+tween two random augmentations of the same image via NT-
+Xent loss. While it achieves strong image-to-image neighbour-
+hood quality, it provides no mechanism for text-based retrieval.
+Similarly, earlier contrastive methods such as MoCo and
+BYOL operate purely within the image modality. These single-
+modal approaches require a separate, independently-trained
+text retrieval pipeline when language queries are needed,
+multiplying maintenance overhead.
+Unimodal text retrieval. Dense passage retrieval methods
+fine-tune language models (e.g. BERT variants) to embed
+queries and documents into the same spa
+
+--- DOCX ---
+A Hybrid Multi-Layered Approach to Semantic Image Retrieval Using Contrastive Learning
+
+
+1st Author Name
+dept. name of organization (of Aff.) name of organization (of Aff.)
+City, Country
+email address or ORCID
+2nd Given Name Surname
+dept. name of organization (of Aff.) name of organization (of Aff.)
+City, Country
+email address or ORCID
+
+
+
+
+As sometimes people have description of something and they need to find image related to that, the description may be in the textual form or in image form. Taking inspiration from multi-layered and hybrid architectures commonly used in complex domains such as object classification in an image, To address this, we develop a hybrid cross-modal image retrieval system built on the principles of Contrastive Language-Image Pre-training (CLIP), which allows users to search images using either other images or natural language text queries. Instead of relying on traditional classification-based image search or manual metadata tagging, we map both visual and textual inputs into a shared 512-dimensional vector space that is same for both text and images, enabling meaningful comparisons across modalities. Our system combines two backbone architectures, one is ResNet-50 for hierarchical visual feature extraction through its deep Convolutional Neural Network (CNN) structure, and the other is Vision Transformer (ViT-B/32) for semantic understanding of text. Both connected through Adaptive Multi-Layer Perceptron (MLP) projection heads that we train using InfoNCE contrastive loss to align the result of both the models in the same vector space. For evaluation, we move beyond rigid exact-match recall and instead adopt a Foundation-Model-graded Contextual Relevance methodology, which better reflects real-world retrieval quality by judging the similarity and closeness of images in the vector space. Our results validate the effectiveness of our design achieving 100% Contextual Precision at Rank 1 (P@1ctx) and an nDCG@10 score of 0.908 on reverse image search tasks, showing that our hybrid projection architecture successfully bridges visual and textual modalities for robust multimodal image retrieval.
+Index Terms—Image Retrieval, Contrastive Learning, Multi-modal, CLIP, ResNet, Vision Transformer, Semantic Search, FAISS, InfoNCE Loss
+
+Introduction
+We live in a world where images are everywhere. From entertainment websites to enterprise databases, the amount of visual content being generated every day has grown far more than what traditional search systems were ever designed to handle. Keyword tags break down, manual annotations don't scale, and traditional classification models simply cannot understand the way humans think about images. There must be a better way to do this.
+That is exactly what this project sets out to build. We propose a hybrid, multimodal image retrieval system that lets users search a visual database in two natural ways, either by typing a plain text description or by providing an example image. Rather than forcing the system to match exact labels, tags and categories, we train it to understand  meaning of images as what is happening in the image. To do this, we combine two specialized neural network backbones: a ResNet-50 CNN that learns to extract rich visual features from images, and a Vision Transformer (ViT-B/32) that handles the semantic understanding of text. Both are brought together through jointly trained MLP projection heads into a shared 512-dimensional vector space, where similarity between any two inputs whether it is text-to-image or image-to-image is measured through cosine similarity. The entire system is trained using CLIP-based contrastive learning with InfoNCE loss, pushing semantically related pairs closer together and unrelated ones further apart.
+The rest of this paper walks through everything we built and tested. Section II reviews related work, Section III lays out the mathematical foundations, Section IV details our architecture, Section V explains the contrastive lea

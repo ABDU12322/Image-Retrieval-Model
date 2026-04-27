@@ -1,0 +1,607 @@
+=== PDF CONTENT START ===
+A Unified Multimodal Retrieval System Combining
+SimCLR and CLIP-Style Contrastive Objectives
+Adeel Tahir and Abdullah Sarafraz
+Department of Software Engineering
+National University of Sciences and Technology (NUST), Islamabad, Pakistan
+Abstract
+We present a unified multimodal image retrieval system that serves both text-to-image (T2I) and image-to-image (I2I) queries
+from a single shared 128-dimensional embedding space. A ResNet-50 image encoder and a DistilBERT text encoder are jointly
+trained on 2,000 MS-COCO image-caption pairs using a weighted combination of SimCLR NT-Xent loss ( τ =0.10) and a CLIP-
+style symmetric cross-entropy loss ( τ =0.07), with α=β=0.5. Training runs for 10 epochs on CPU, reducing total loss from 1.461
+to 0.320 (78% reduction). Retrieval is served via a FAISSIndexFlatIP over L2-normalised embeddings. T2I semantic evaluation
+on 50 COCO val2017 queries ( K=5, gallery = 5 ,000) achieves Average CLIP Score@5 = 0 .248, Semantic NDCG@5 = 0 .986,
+and Soft Recall@5= 0.880. I2I evaluation using COCO category ground truth (50 queries, 4,902-image gallery, hard mode) yields
+Category Precision@5= 0.828, Category NDCG@5= 0.838, and Category Recall@5 = 0.960, with Self-Embedding Cosine@5 =
+0.780.
+Index Terms
+Multimodal retrieval, contrastive learning, SimCLR, CLIP, FAISS, MS-COCO, semantic evaluation
+I. I NTRODUCTION
+A. Problem Definition
+Existing image retrieval systems are largely unimodal: they
+accept either a text query or an image query, but not both,
+within a single unified model. This forces practitioners to
+maintain separate pipelines for text-based and image-based
+retrieval, limiting flexibility and increasing operational com-
+plexity in deployment.
+This project builds a single multimodal retrieval model that
+accepts either an image or a text query and retrieves seman-
+tically similar images from the same gallery. The expected
+outcome is a unified model with improved retrieval accuracy
+compared to unimodal baselines, evaluated on the MS-COCO
+dataset [3].
+B. Research Gap
+Previous work in image retrieval has focused on single-
+modal approaches — using either image input only (e.g.
+contrastive visual representation learning [1]) or text input only
+(e.g. natural-language image search) to retrieve similar images.
+No prior lightweight unified model was proposed that handles
+both modalities within a single shared training objective and
+a single checkpoint.
+This project addresses that gap by combining image-to-
+image learning (SimCLR-based contrastive learning across
+augmented views) with image-to-text alignment (CLIP-style
+vision-language loss) into one loss function:
+L = α LSimCLR + β LCLIP, (1)
+enabling one model to serve both T2I and I2I query types
+effectively.
+C. Contributions
+We combine two complementary objectives: SimCLR [1]
+builds view-invariant visual neighbourhoods; CLIP-style train-
+ing [2] aligns vision with language. The joint loss trains
+one encoder pair whose shared embedding space is compact
+for visual similarity and semantically aligned for cross-modal
+queries. Our system uses ResNet-50 + DistilBERT [5] trained
+on 2,000 COCO pairs for 10 epochs on a CPU. Despite these
+constraints, Soft Recall@5 = 0 .88 and Category Recall@5 =
+0.96 demonstrate meaningful semantic retrieval.
+II. R ELATED WORK
+Unimodal image retrieval. SimCLR [1] learns view-
+invariant visual representations by maximising agreement be-
+tween two random augmentations of the same image via NT-
+Xent loss. While it achieves strong image-to-image neighbour-
+hood quality, it provides no mechanism for text-based retrieval.
+Similarly, earlier contrastive methods such as MoCo and
+BYOL operate purely within the image modality. These single-
+modal approaches require a separate, independently-trained
+text retrieval pipeline when language queries are needed,
+multiplying maintenance overhead.
+Unimodal text retrieval. Dense passage retrieval methods
+fine-tune language models (e.g. BERT variants) to embed
+queries and documents into the same space. Flickr30K [4]
+and COCO Captions [3] have been widely used to benchmark
+caption-to-image retrieval, but these benchmarks typically
+assume a dedicated text-only query model.
+Cross-modal alignment. CLIP [2] trains dual image-text
+encoders with symmetric cross-entropy on 400 million web
+image-text pairs, achieving remarkable zero-shot T2I retrieval.
+However, CLIP is a large-scale model (ViT-B/32 has 151M
+parameters) and requires substantial compute to train from
+Image x
+ResNet-50
+(pretrained)
+Proj. Head
+2048 → 512 → 128
+Caption t
+DistilBERT
+(pretrained)
+Proj. Head
+768 → 512 → 128
+Shared 128-D Space ( ℓ2-norm)
+FAISS IndexFlatIP
+Fig. 1. Dual-encoder: both branches project to the same 128-D space.
+scratch. Our work combines the CLIP alignment objective
+with SimCLR’s view-invariance in a single lightweight loop
+(ResNet-50 + DistilBERT, 2,000 training pairs, CPU-feasible),
+addressing both T2I and I2I in one checkpoint.
+Evaluation methodology. Prior work typically uses binary
+recall metrics. We adopt a two-evaluator strategy: frozen
+CLIP ViT-B/32 for T2I semantic scoring, and COCO instance
+category labels for I2I — avoiding the language-alignment
+bias that CLIP image embeddings introduce when measuring
+intra-modal visual similarity.
+III. M ETHOD
+A. Problem Setup
+Given paired training data D = {(xi, ti)}N
+i=1 with image xi
+and caption ti, we learn:
+fθ : X → Rd, g ϕ : T → Rd, (2)
+with d=128 and ℓ2-normalisation applied so dot-product
+equals cosine similarity.
+B. Dual-Encoder Architecture
+Fig. 1 illustrates the dual-encoder. The ImageEncoder
+strips the final FC layer of ResNet-50 (ImageNet-pretrained),
+yielding a 2,048-D feature, then applies a two-layer projection
+head (Linear → ReLU → Linear) to produce 128-D embed-
+dings. The TextEncoder extracts the [CLS] token of Distil-
+BERT (768-D) and applies an identical projection structure.
+Both outputs are L2-normalised before loss computation or
+retrieval scoring.
+C. SimCLR Objective
+Per image x, two augmented views ˜x(1), ˜x(2) are encoded
+to zi, zj. NT-Xent loss is:
+LSimCLR = − 1
+2N
+2NX
+i=1
+log exp(sim(zi, zp(i))/τs)P
+k̸=i exp(sim(zi, zk)/τs) , (3)
+where τs=0.10 and p(i) is the positive partner of view i.
+val2017 images (5,000)
+ImageEncoder → 128-D
+L2 normalise
+FAISS IndexFlatIP
+build & cache to disk
+Query
+Encode + L2 norm
+.search(q,K)
+Top-K paths
+Fig. 2. FAISS pipeline: gallery encoded once (offline); queries searched
+online.
+D. CLIP-Style Objective
+The similarity matrix S = ZimgZ ⊤
+txt/τc is formed and
+symmetric cross-entropy applied:
+LCLIP = 1
+2
+
+CE(S, y) + CE(S⊤, y)
+
+, (4)
+with τc=0.07 and y = identity permutation (diagonal posi-
+tives).
+E. Joint Objective
+L = α LSimCLR + β LCLIP, α = β = 0.5. (5)
+The equal weighting ensures neither modality dominates. Both
+temperature values are kept at their published defaults.
+IV. D ATASET AND PREPROCESSING
+MS-COCO 2017 [3] provides 118,287 training im-
+ages with five captions each. preprocess.py reads
+captions_train2017.json, assigns the first caption per
+image, and samples 2,000 pairs (seed 42). The output is a flat
+JSON list: {image_path, caption}2000
+i=1 .
+Training augmentation per view: random resized crop
+(224×224, scale 0.2–1.0), horizontal flip ( p=0.5), color jit-
+ter (brightness, contrast, saturation, hue), random grayscale
+(p=0.2), Gaussian blur, and ImageNet normalisation. Evalua-
+tion uses deterministic resize-256 then center-crop-224.
+V. FAISS R ETRIEVAL
+All val2017 images are encoded with the trained
+ImageEncoder, L2-normalised, and stored in a
+IndexFlatIP index (inner product equals cosine similarity
+after normalisation). The index is written to .cache/eval/
+and reloaded on subsequent runs. At query time, the query
+vector is normalised and FAISS returns top-K indices and
+similarity scores in sub-millisecond time.
+VI. T RAINING RESULTS
+A. Configuration
+Table I lists the training hyperparameters.
+TABLE I
+TRAINING CONFIGURATION
+Parameter Value
+Training pairs 2,000
+Batch size 16
+Embedding dim d 128
+Image backbone ResNet-50 (pretrained)
+Text backbone DistilBERT-base-uncased
+Epochs 10
+Optimizer AdamW
+Learning rate 3 × 10−4
+Weight decay 1 × 10−4
+α (SimCLR weight) 0.5
+β (CLIP weight) 0.5
+τs (SimCLR temp.) 0.10
+τc (CLIP temp.) 0.07
+Batches per epoch 62 (drop last)
+Device CPU
+1 2 3 4 5 6 7 8 9 100
+1
+2
+Epoch
+Loss
+Total
+CLIP
+SimCLR
+Fig. 3. Training loss over 10 epochs. Total falls 78% (1.461 →0.320).
+B. Convergence
+Table II and Fig. 3 show full convergence data. Both
+component losses decrease monotonically. CLIP loss falls
+80% (2.244 →0.439), indicating rapid cross-modal alignment.
+SimCLR loss falls 71% (0.678→0.200), confirming improving
+visual invariance. The best checkpoint is saved at epoch 10.
+VII. T EXT-TO-IMAGE EVALUATION
+A. Setup
+50 COCO val2017 captions are used as text queries against
+a gallery of 5,000 val2017 images (K=5). A frozen CLIP ViT-
+B/32 acts as an independent semantic judge — it was never
+fine-tuned and has no knowledge of the trained model.
+B. Metric Definitions
+A vg CLIP Score@K: mean cosine similarity between the
+frozen CLIP text embedding of the query and the CLIP image
+embeddings of each retrieved image:
+CLIP@K = 1
+K
+KX
+i=1
+cos
+ 
+eCLIP
+t , eCLIP
+ri
+
+. (6)
+TABLE II
+TRAINING LOSS PER EPOCH
+Epoch Total SimCLR CLIP
+1 1.4607 0.6779 2.2435
+2 0.8814 0.3818 1.3809
+3 0.7463 0.3459 1.1467
+4 0.6515 0.3175 0.9855
+5 0.5148 0.2621 0.7674
+6 0.4525 0.2661 0.6388
+7 0.4137 0.2384 0.5891
+8 0.4032 0.2529 0.5536
+9 0.3468 0.2093 0.4843
+10 0.3195 0.1998 0.4393
+TABLE III
+TEXT-TO-IMAGE — S EMANTIC METRICS (50 QUERIES , K=5, GALLERY
+5,000)
+Metric Value Type
+Avg CLIP Score@5 0.2478 Semantic
+Semantic NDCG@5 0.9862 Semantic
+Soft Recall@5 ( ε=0.80) 0.8800 Near-match
+Exact Recall@5 0.1000 Binary
+Exact Precision@5 0.0200 Binary
+MRR@5 0.0450 Ranking
+Semantic NDCG@K : graded relevance
+reli=(cos(eCLIP
+gt , eCLIP
+ri )+1)/2 ∈ [0, 1] used in standard
+NDCG:
+NDCG@K =
+PK
+i=1 reli/ log2(i+1)
+PK
+i=1 rel∗
+i / log2(i+1)
+, (7)
+where rel ∗ is the ideal (sorted) ordering.
+Soft Recall@K : a query is a hit if any retrieved image
+satisfies cos(egt, eri ) ≥ 2ε−1, with ε=0.80.
+Exact Recall@K / Precision@K / MRR@K : binary file-
+name match.
+C. Results
+Table III shows semantic metrics; Table IV shows the per-K
+exact-match breakdown.
+D. Analysis
+The 78-point gap between Soft Recall@5 ( 0.880) and Exact
+Recall@5 ( 0.100) is the central finding for T2I. The model
+retrieves semantically correct images in 88% of queries but
+rarely surfaces the exact ground-truth file, which is expected
+given a 5,000-image gallery. Semantic NDCG@5 = 0 .986
+confirms that when relevant images appear in the top-5, they
+are ranked near position 1. CLIP Score@5 = 0.248 sits within
+the typical range for cross-modal retrieval on COCO (0.20–
+0.35), indicating genuine semantic alignment despite the small
+training set. The low exact MRR (0.045) reflects that exact hits
+appear near rank 5 rather than rank 1.
+TABLE IV
+TEXT-TO-IMAGE — P ER-K EXACT RECALL AND PRECISION
+K Recall@K Precision@K
+1 0.0200 0.0200
+3 0.0800 0.0267
+5 0.1000 0.0200
+TABLE V
+IMAGE -TO-IMAGE — C ATEGORY METRICS (50 QUERIES , K=5, GALLERY
+4,902, HARD MODE )
+Metric Value Type
+Category Precision@5 0.8280 Primary
+Category NDCG@5 0.8382 Primary
+Category Recall@5 0.9600 Primary
+Self-Emb. Cosine@5 0.7796 Model quality
+Exact Self-Retrieval@5 0.0000 Sanity (expected)
+VIII. I MAGE -TO-IMAGE EVALUATION
+A. Why Not CLIP for I2I?
+CLIP image embeddings are optimised to align with lan-
+guage, not to maximise intra-visual similarity. Two im-
+ages of the same COCO category may have lower CLIP
+image-image cosine similarity than an image paired with
+its caption. We therefore use COCO instance annotations
+(instances_val2017.json, 80 categories) as ground
+truth — this is the standard evaluation protocol for semantic
+image retrieval.
+B. Setup
+50 annotated val2017 images are sampled as queries. The
+gallery contains 4,902 annotated images (hard mode: query
+images excluded). K=5.
+C. Metric Definitions
+Category Precision@K :
+CatP@K = 1
+K
+KX
+i=1
+1[cats(ri) ∩ cats(q) ̸= ∅]. (8)
+Category NDCG@K : Jaccard similarity as graded rele-
+vance:
+J(q, ri) = |cats(q) ∩ cats(ri)|
+|cats(q) ∪ cats(ri)| ∈ [0, 1]. (9)
+Category Recall@K : fraction of queries where ∃ ri with
+cats(ri) ∩ cats(q) ̸= ∅.
+Self-Embedding Cosine@K: mean cosine similarity inside
+the model’s own 128-D space:
+EmbSim@K = 1
+K
+KX
+i=1
+cos(fθ(q), fθ(ri)). (10)
+TABLE VI
+SIDE -BY-SIDE EVALUATION SUMMARY
+T2I I2I
+Queries 50 50
+Gallery size 5,000 4,902
+Mode text query hard (excl. query)
+Primary semantic metric CLIP Score@5 Category Precision@5
+Primary semantic value 0.2478 0.8280
+Ranking quality (NDCG@5) 0.9862 0.8382
+Near-match / recall 0.8800 0.9600
+Exact match (R@5) 0.1000 0.0 (expected)
+MRR@5 0.0450 0.0 (expected)
+D. Results
+Table V shows the I2I results. Category Recall@5 = 0 .960
+means 96% of queries returned at least one same-category
+image in the top 5. Category Precision@5 = 0 .828 means on
+average 4.14 of the 5 retrieved images share a COCO category
+with the query. Jaccard-graded NDCG@5 = 0.838 indicates a
+strong ranking structure where more category-overlapping im-
+ages tend to rank higher. Self-Embedding Cosine@5 = 0 .780
+shows the 128-D embedding space is well-clustered for visual
+similarity. Exact self-retrieval = 0 .0 is the expected result in
+hard mode (the query image is not in the gallery).
+IX. C OMPARATIVE SUMMARY
+Table VI side-by-sides both tasks. The higher semantic
+scores in I2I (0.828 vs. 0.248) reflect that intra-modal retrieval
+is fundamentally easier than cross-modal. The near-unity Se-
+mantic NDCG for T2I (0.986) versus I2I (0.838) suggests
+that when the model retrieves something relevant in T2I, the
+ranking is near-perfect, while I2I ordering has more variance
+likely due to multi-category images where Jaccard relevance
+is partial.
+X. D ISCUSSION
+SimCLR vs. CLIP contribution. SimCLR loss (final:
+0.200) provides compact visual neighbourhoods that directly
+benefit I2I retrieval. CLIP loss (final: 0.439) enables T2I
+by aligning text and image embeddings. The joint objective
+(Eq. 5) preserves both properties in one checkpoint.
+Semantic gap analysis. In T2I, Soft Recall@5 = 0 .88 vs.
+Exact Recall@5 = 0 .10 is a 78-point gap. This means the
+model finds semantically correct content in nearly 9 of 10
+queries but rarely surfaces the specific file. This is appropriate
+system behaviour: in production, users prefer a semantically
+matching image over an exact-match failure.
+Evaluation methodology. Using frozen CLIP for T2I and
+COCO category labels for I2I ensures neither evaluator is
+biased by the model under test. CLIP has language-alignment
+bias that inflates image-image similarity scores; COCO labels
+are model-agnostic ground truth.
+Limitations. Batch size 16 limits contrastive negative di-
+versity. Only 2,000 training pairs are used out of 118,287
+available. Exact T2I recall (0.10 at K=5) leaves significant
+room for improvement with hard-negative mining or larger
+training subsets.
+XI. C ONCLUSION
+We presented a unified multimodal retrieval system that
+handles T2I and I2I queries from a single 128-D embedding
+space trained with combined SimCLR and CLIP-style objec-
+tives. Training on 2,000 COCO pairs for 10 epochs achieves
+78% loss reduction. Semantic evaluation confirms strong per-
+formance on both tasks: T2I Soft Recall@5 = 0.880, Semantic
+NDCG@5= 0 .986; I2I Category Precision@5 = 0 .828, Cat-
+egory Recall@5 = 0 .960. The system is fully reproducible,
+CPU-feasible, and directly extensible to larger backbones,
+more training data, and GPU-accelerated FAISS.
+REFERENCES
+[1] T. Chen, S. Kornblith, M. Norouzi, and G. Hinton, “A Simple Framework
+for Contrastive Learning of Visual Representations,” Proc. ICML, 2020.
+https://arxiv.org/abs/2002.05709
+[2] A. Radford et al., “Learning Transferable Visual Models From Natural
+Language Supervision,” Proc. ICML , 2021. https://arxiv.org/abs/2103.
+00020
+[3] T.-Y . Lin et al., “Microsoft COCO: Common Objects in Context,” Proc.
+ECCV, pp. 740–755, 2014. https://arxiv.org/abs/1405.0312
+[4] P. Young, A. Lai, M. Hodosh, and J. Hockenmaier, “From Image
+Descriptions to Visual Denotations,” Trans. Assoc. Comput. Linguistics
+(TACL), 2014. https://aclanthology.org/Q14-1006/
+[5] V . Sanh, L. Debut, J. Chaumond, and T. Wolf, “DistilBERT, a
+Distilled Version of BERT: Smaller, Faster, Cheaper and Lighter,”
+arXiv:1910.01108, 2019.
+[6] J. Johnson, M. Douze, and H. J ´egou, “Billion-Scale Similarity Search
+with GPUs,” IEEE Trans. Big Data , 7(3):535–547, 2021.
+=== PDF CONTENT END ===
+
+=== DOCX CONTENT START ===
+A Hybrid Multi-Layered Approach to Semantic Image Retrieval Using Contrastive Learning
+
+
+1st Author Name
+dept. name of organization (of Aff.) name of organization (of Aff.)
+City, Country
+email address or ORCID
+2nd Given Name Surname
+dept. name of organization (of Aff.) name of organization (of Aff.)
+City, Country
+email address or ORCID
+
+
+
+
+As sometimes people have description of something and they need to find image related to that, the description may be in the textual form or in image form. Taking inspiration from multi-layered and hybrid architectures commonly used in complex domains such as object classification in an image, To address this, we develop a hybrid cross-modal image retrieval system built on the principles of Contrastive Language-Image Pre-training (CLIP), which allows users to search images using either other images or natural language text queries. Instead of relying on traditional classification-based image search or manual metadata tagging, we map both visual and textual inputs into a shared 512-dimensional vector space that is same for both text and images, enabling meaningful comparisons across modalities. Our system combines two backbone architectures, one is ResNet-50 for hierarchical visual feature extraction through its deep Convolutional Neural Network (CNN) structure, and the other is Vision Transformer (ViT-B/32) for semantic understanding of text. Both connected through Adaptive Multi-Layer Perceptron (MLP) projection heads that we train using InfoNCE contrastive loss to align the result of both the models in the same vector space. For evaluation, we move beyond rigid exact-match recall and instead adopt a Foundation-Model-graded Contextual Relevance methodology, which better reflects real-world retrieval quality by judging the similarity and closeness of images in the vector space. Our results validate the effectiveness of our design achieving 100% Contextual Precision at Rank 1 (P@1ctx) and an nDCG@10 score of 0.908 on reverse image search tasks, showing that our hybrid projection architecture successfully bridges visual and textual modalities for robust multimodal image retrieval.
+Index Terms—Image Retrieval, Contrastive Learning, Multi-modal, CLIP, ResNet, Vision Transformer, Semantic Search, FAISS, InfoNCE Loss
+
+Introduction
+We live in a world where images are everywhere. From entertainment websites to enterprise databases, the amount of visual content being generated every day has grown far more than what traditional search systems were ever designed to handle. Keyword tags break down, manual annotations don't scale, and traditional classification models simply cannot understand the way humans think about images. There must be a better way to do this.
+That is exactly what this project sets out to build. We propose a hybrid, multimodal image retrieval system that lets users search a visual database in two natural ways, either by typing a plain text description or by providing an example image. Rather than forcing the system to match exact labels, tags and categories, we train it to understand  meaning of images as what is happening in the image. To do this, we combine two specialized neural network backbones: a ResNet-50 CNN that learns to extract rich visual features from images, and a Vision Transformer (ViT-B/32) that handles the semantic understanding of text. Both are brought together through jointly trained MLP projection heads into a shared 512-dimensional vector space, where similarity between any two inputs whether it is text-to-image or image-to-image is measured through cosine similarity. The entire system is trained using CLIP-based contrastive learning with InfoNCE loss, pushing semantically related pairs closer together and unrelated ones further apart.
+The rest of this paper walks through everything we built and tested. Section II reviews related work, Section III lays out the mathematical foundations, Section IV details our architecture, Section V explains the contrastive learning framework, Section VI covers our experimental setup, Section VII introduces our evaluation strategy, Section VIII analyzes our results, and Section IX wraps up with conclusions and future directions. 
+Literature Review
+CNN-Based Visual Feature Learning
+He et al. [1] introduced ResNet-50, a deep convolutional network that uses skip connections to solve gradient issues in very deep networks. The key idea is that instead of learning everything from scratch, the network learns the difference from the input: F(x) = H(x) + x. This allowed training much deeper networks successfully. ResNet-50 became widely used for extracting visual features from images. However, it was designed for classification tasks, so its features work well for categorizing images but not for measuring how similar two images are semantically—which is what we need for retrieval.
+Contrastive Learning for Similarity
+   Chen et al. [2] introduced SimCLR, a framework that teaches models to understand similarity rather than just classification. It uses NT-Xent loss to pull similar samples closer together in feature space while pushing dissimilar ones apart. He et al. [3] improved this with MoCo, which made contrastive learning more efficient by using a momentum encoder and memory bank, avoiding the need for very large batch sizes. These methods produced more flexible representations than classification-based training, but they only worked within one type of data—images were only compared to other images, never to text descriptions.
+Vision Transformers for Semantic Understanding
+  Dosovitskiy et al. [4] proposed the Vision Transformer (ViT), which applied the Transformer architecture—originally designed for language by Vaswani et al. [5]—to images. Instead of using convolutional filters, ViT splits images into patches and processes them as a sequence, capturing long-range relationships across the entire image. Research has shown that combining CNNs with Transformers works better than using either alone [6], because CNNs are good at local details while Transformers excel at understanding global context. Our work takes advantage of this by using both ResNet and ViT together.
+Multimodal Learning
+Radford et al. [7] introduced CLIP, which extended contrastive learning to connect two different types of data—images and text. CLIP was trained on millions of image-text pairs from the internet, using InfoNCE loss [8] to align images and text in a shared space. This alignment is measured using cosine similarity: sim(v,t) = (v·t)/(||v|| ||t||). This breakthrough showed that we could bridge vision and language, enabling text-based image search.
+
+Related Work in Multimodal Image Retrieval
+   Recent work has explored different aspects of multimodal retrieval, but most approaches have significant limitations. Moro et al. [9] and Zhou and Hudin [10] developed domain-specific solutions for fashion retrieval, achieving good results but lacking generalization to other domains. Naik and Agarwal [11] improved CLIP's robustness under challenging conditions through their ENCLIP framework, while Bibi and Rehman [12] confirmed that feature space quality directly impacts retrieval performance. However, existing methods either focus on single domains, use single-modal backbones, or treat text-to-image and image-to-image retrieval as separate problems. Our work addresses these gaps by combining ResNet-50 and ViT-B/32 through jointly trained projection heads, creating a unified system that handles both retrieval modes in one architecture.
+Proposed Hybrid Architecture
+To process fundamentally different data modalities effec-tively, we design a dual-encoder architecture featuring robust, state-of-the-art foundation models acting as feature extractors. These backbones are coupled with actively trained Multi-Layer Perceptron (MLP) projection heads. This hybrid multi-layered approach ensures that the model benefits from immense pre-trained world knowledge while still retaining the flexibility to adapt to the geometry of our specific dataset.
+
+Fig. 1. High-Level Architecture of the Hybrid CLIP Model, demonstrating the dual-encoder topology and projection heads.
+
+Image Encoder Sub-network (ResNet-50)
+For visual feature extraction, we utilize a pre-trained ResNet-50 backbone. ResNet-50 is chosen for its highly stable hierarchical feature extraction and its mitigation of the vanishing gradient problem via skip connections.
+Backbone Feature Extraction: We instantiate the stan-dard PyTorch ResNet-50 model pre-trained on Im-ageNet (ResNet50_Weights.DEFAULT). The final fully-connected classification layer (fc) is removed by replacing it with an nn.Identity() module. The
+
+
+output of this truncated backbone is a dense, 2048-
+
+dimensional feature map that encapsulates critical visual concepts ranging from low-level edges to high-level ob-ject compositions.
+Multi-Layer Projection Head: The raw 2048-dimensional features are highly optimized for ImageNet classification, not semantic retrieval. To map this
+
+vector to our target 512-dimensional shared space, we	Similarly, the loss for the text-to-image direction is:
+implement a multi-layered, non-linear projection head.	N	τ
+
+This MLP consists of:
+L	= −  1 Σ log Σ exp(sim(Ii, Ti) · e )
+(4)
+
+1024 dimensions.
+A Rectified Linear Unit (ReLU) activation function
+The final total loss is the average of both directions:
+
+to introduce non-linearity.
+A final Linear layer mapping 1024 → 512 dimen-
+Ltotal
+= Li2t + Lt2i
+2
+(5)
+
+sions.
+Text Encoder Sub-network (ViT-B/32)
+For semantic text understanding, a Transformer-based ar-chitecture is required to capture long-range contextual depen-dencies and grammatical structure, which traditional Recurrent Neural Networks (RNNs) struggle with.
+Foundation Backbone: We employ the text encoder derived from OpenAI’s foundation ViT-B/32 CLIP
+B. Learnable Temperature Scaling (τ)
+A critical component of the InfoNCE loss is the temperature parameter, τ . If the raw cosine similarities (which lie between
+-1 and 1) are passed directly into the softmax function, the distribution is too flat, and the network struggles to distinguish between hard negatives and positives.
+To solve this, the similarities are scaled by eτ . In our architecture, τ is initialized to represent a scaling factor of ap-
+proximately 14.28 (  1  ) and is defined as a nn.Parameter,
+
+model. This Transformer processes text that has been tok-
+making it a
+0.07
+learnable weight that the optimizer updates during
+
+enized using Byte-Pair Encoding (BPE) with a maximum sequence length of 77 tokens.
+Feature Extraction: The text encoder utilizes masked self-attention blocks. The final representation of the sen-tence is extracted from the highest layer’s activation at the [EOS] (End of Sequence) token, which aggregates the contextualized meaning of the entire caption into a 512-dimensional vector.
+Linear Projection Head: Because we are aligning this text space to our custom ResNet-driven image space, we append a trainable Linear projection layer (512 → 512). While the foundation model extracts the core semantics, this projection head is responsible for actively bending
+and rotating the text representation to align identically with the ResNet visual space.
+Contrastive Learning Framework
+The defining characteristic of our architecture is the loss function used to optimize the projection heads. We utilize the InfoNCE (Information Noise-Contrastive Estimation) loss.
+A. InfoNCE Loss Formulation
+During training, the system processes data in batches of size
+N , yielding N image-text pairs. The forward pass generates N image embeddings (I1, I2, . . . , IN ) and N text embeddings (T1, T2, . . . , TN ).
+The model computes an N × N cosine similarity matrix. The diagonal elements (Ii ·Ti) represent the ”positive” ground-truth pairs, while all off-diagonal elements (Ii · Tj for i ̸= j) represent ”negative” pairs.
+The loss function attempts to maximize the similarity of the positive pairs while minimizing the similarity of the N − 1 negative pairs. This is achieved by computing a symmetric categorical cross-entropy loss over the similarity matrix.
+The loss for the image-to-text direction is defined as:
+backpropagation. This allows the model to dynamically adjust the strictness of the softmax distribution as it learns.
+Experimental Setup and Implementation
+Dataset Configuration
+The model was evaluated using a meticulously cleaned subset of the COCO (Common Objects in Context) dataset. The COCO dataset provides complex, natural scenes with five distinct textual captions per image, making it an ideal benchmark for semantic alignment. To simulate a resource-constrained environment, training and evaluation were con-ducted on a focused subset (100 to 2000 images).
+Data Augmentation Pipeline
+To ensure robust visual feature extraction and prevent the ResNet backbone from overfitting to trivial visual artifacts, a stochastic data augmentation pipeline was implemented utilizing torchvision.transforms.
+Random Resized Crop: Images are randomly cropped (retaining 80% to 100% of the original area) and resized to 224 × 224 pixels.
+Horizontal Flipping: Applied with a 50% probability.
+Color Jittering: Random alterations to brightness (±20%), contrast (±20%), saturation (±20%), and hue
+(±5%).
+Normalization: Standard ImageNet channel-wise nor-
+malization.
+Hardware and Hyperparameters
+The implementation was executed in PyTorch. The model was trained using the AdamW optimizer (Adam with decou-pled Weight Decay), which has proven highly effective for Transformer-based architectures.
+Learning Rate: Initialized at 1e − 4.
+Weight Decay: 1e − 5 to prevent overfitting.
+
+N	τ
+
+L	= −  1 Σ log 	exp(sim(Ii, Ti) · e )	
+(3)
+Batch Size: 16. (Due to the O(N 2) nature of con-
+
+i2t	N
+ΣN  exp(sim(I , T ) · eτ )
+trastive loss, smaller batch sizes significantly handicap the
+
+model’s ability to learn from negative examples, which we identify as a limitation).
+Epochs: 20.
+Vector Database Integration (FAISS)
+To ensure the retrieval system scales to production environ-ments, the training pipeline was heavily integrated with FAISS (Facebook AI Similarity Search). Upon completion of training, the model automatically encodes the entire dataset into the 512-dimensional latent space and constructs an optimized IndexFlatIP (Inner Product) FAISS index. This guaran-tees sub-millisecond retrieval latency even across millions of vectors.
+Evaluation Methodology
+Evaluating a multi-modal retrieval system requires nuance. This section outlines the shift from traditional rigid metrics to semantic, contextual evaluations.
+The Limitations of Exact Match Recall
+Standard retrieval metrics, such as Recall@K (R@K), strictly require the system to retrieve the exact paired image provided in the ground-truth dataset. In highly diverse datasets, this introduces a severe false-negative penalty. If a user queries ”A brown dog playing in the park,” and the model retrieves a perfect image of a brown dog in a park that happens to be Image B, but the dataset paired the query with Image A, the Recall metric scores a 0. This rigid evaluation fails to measure the true semantic capability of the model.
+Foundation-Graded Contextual Relevance
+To address this flaw, we developed a contextual evaluation pipeline that utilizes an external, frozen foundation model as a ”judge”.
+Foundation Grading: The retrieved results and the query are passed through a massive, perfectly converged Foundation CLIP model to compute an absolute seman-tic similarity score (CLIPScore).
+Contextual Precision (P@Kctx): We establish a strict semantic threshold of 0.60. Any retrieved item that scores above 60% semantic similarity is marked as a ”correct” contextual match, regardless of whether it is the exact ground-truth pair.
+Normalized Discounted Cumulative Gain (nDCG@K): We compute the ranking quality based on these graded semantic scores, penalizing the model if highly relevant images are ranked below moderately relevant ones.
+Results and Discussion
+The model was evaluated across two distinct retrieval paradigms: Image-to-Image (visual similarity) and Text-to-Image (semantic similarity). The results highlight a stark contrast between intra-modal clustering and cross-modal align-ment under constrained compute.
+Image-to-Image Retrieval Analysis
+For Reverse Image Searching (Image-to-Image), the text encoder is bypassed entirely. A query image is passed through the ResNet-50 Image Encoder, and FAISS is used to retrieve the nearest neighbor image embeddings.
+The architecture proved extraordinarily effective at mapping similar visual concepts. As detailed in Table I, the model achieved a Contextual Precision at Rank 1 (P@1ctx) of 1.000. This indicates that 100% of the top retrieved images success-fully exceeded the strict 60% semantic similarity threshold. The average semantic similarity of the top results (CLIP-Score@1) was 0.743. Furthermore, the nDCG@10 of 0.908 demonstrates near-perfect ranking geometry within the visual latent space, proving that the multi-layer MLP projection head successfully learned to organize visual data logically.
+
+TABLE I
+Image-to-Image  Retrieval  Contextual  Metrics
+
+
+
+
+Text-to-Image Retrieval Analysis
+While intra-modal visual clustering was highly successful, cross-modal Text-to-Image retrieval highlighted the limitations of the current training configuration.
+As shown in Table II, the exact-match Mean Rank (MeanR) was 50.17 out of 100 candidates, indicating that the model’s ability to find the exact original dataset pair is statistically equivalent to random guessing (Lift@10 = 1.12x).
+However, examining the contextual metrics reveals that the model is actively learning. The model achieved an average CLIPScore@1 of 0.572. This confirms that the retrieved im-ages possess a moderate baseline relevance to the text queries and are not random noise. The primary issue is that the average similarity hovers just below the strict 0.60 threshold, resulting in a P@1ctx of 9.8%.
+
+TABLE II
+Text-to-Image Retrieval Contextual Metrics
+
+
+
+
+Limitations
+The disparity between Image-to-Image and Text-to-Image performance is directly attributable to the batch size bottle-neck. Contrastive learning relies heavily on in-batch negative sampling. With a batch size of only 16, the model only sees
+
+15 negative examples per step. This prevents the loss function from creating sufficient repulsive force to perfectly align the complex text embeddings with the image embeddings, resulting in the ”under-baked” 57% similarity ceiling.
+Conclusion and Future Work
+This paper presented a highly structured, hybrid multi-layered approach to cross-modal semantic image retrieval. By integrating a deep CNN visual backbone with a Transformer text backbone and mapping them through adaptive projection heads via contrastive learning, we constructed a system capa-ble of robust semantic search.
+We demonstrated that despite restricted computational re-sources, the visual latent space organizes beautifully, achiev-ing 100% contextual precision in reverse image searching paradigms. We also introduced a more accurate, foundation-graded evaluation methodology that solves the flaws of rigid exact-match metrics.
+To close the semantic gap in text-to-image performance and push the cross-modal precision above 90%, future work will focus on three key architectural and training optimizations:
+Parameter-Efficient Fine-Tuning (PEFT): Implement-ing Low-Rank Adaptation (LoRA) within the ViT and ResNet layers to accelerate the convergence of the deep backbone features without catastrophic memory over-head.
+Hard Negative Mining: Modifying the FAISS vector database to dynamically feed highly similar but seman-tically distinct images into the training batches. This will aggressively penalize the model for confusing subtle visual differences, forcing the projection heads to learn finer discriminative boundaries.
+Compute Scaling and Batch Expansion: Utilizing dis-tributed cloud GPU infrastructure to scale the batch size from 16 to 1024 or higher, providing the InfoNCE loss with sufficient negative examples to properly orient the text-to-image embedding space over 100+ epochs.
+Acknowledgment
+The authors would like to acknowledge the contributions of the open-source community, particularly the developers of PyTorch, FAISS, and the Hugging Face Transformers library, whose tools made this hybrid architecture feasible.
+References
+K. He, X. Zhang, S. Ren, and J. Sun, "Deep residual learning for image recognition," in Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR), Las Vegas, NV, USA, 2016, pp. 770–778.
+T. Chen, S. Kornblith, M. Norouzi, and G. Hinton, "A simple framework for contrastive learning of visual representations," in Proc. 37th Int. Conf. Machine Learning (ICML), Vienna, Austria, 2020, pp. 1597–1607.
+K. He, H. Fan, Y. Wu, S. Xie, and R. Girshick, "Momentum contrast for unsupervised visual representation learning," in Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR), Seattle, WA, USA, 2020, pp. 9729–9738.
+A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly, J. Uszkoreit, and N. Houlsby, "An image is worth 16x16 words: Transformers for image recognition at scale," in Proc. Int. Conf. Learning Representations (ICLR), Vienna, Austria, 2021.
+A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, "Attention is all you need," in Proc. Advances in Neural Information Processing Systems (NeurIPS), Long Beach, CA, USA, 2017, pp. 5998–6008.
+A. Khan, S. Liu, W. Liu, and J. Bhatt, "A survey of the vision transformers and their CNN-transformer based variants," Artificial Intelligence Review, vol. 56, pp. 2917–2970, 2023.
+A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark, G. Krueger, and I. Sutskever, "Learning transferable visual models from natural language supervision," in Proc. 38th Int. Conf. Machine Learning (ICML), Virtual, 2021, pp. 8748–8763.
+A. van den Oord, Y. Li, and O. Vinyals, "Representation learning with contrastive predictive coding," arXiv preprint arXiv:1807.03748, 2018.
+G. Moro, S. Salvatori, and G. Frisoni, "Efficient text-image semantic search: A multi-modal vision-language approach for fashion retrieval," Neurocomputing, vol. 538, p. 126196, Jun. 2023.
+ S. Zhou and N. B. S. Hudin, "Enhancing fashion e-commerce retrieval: A self-supervised graph-integrated framework for cross-modal image–text alignment," Egyptian Informatics Journal, 2025.
+ P. P. Naik and R. Agarwal, "ENCLIP: Ensembling and clustering-based contrastive language-image pretraining for fashion multimodal search with limited data and low-quality images," arXiv preprint arXiv:2411.16096, 2024.
+ Z. Bibi and M. U. Rehman, "Performance analysis of SpectralNet algorithm on Fashion MNIST and KMNIST datasets: A study on clustering efficiency and resource utilization," Pakistan Journal of Engineering and Technology (PakJET), 2024.
+
+=== DOCX CONTENT END ===
